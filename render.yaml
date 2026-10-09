@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: race-probe
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --worker-class gthread --threads 50 -w 1 app:app

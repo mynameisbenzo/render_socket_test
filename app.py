@@ -29,7 +29,7 @@ def health():
 @app.get("/stats")
 def stats():
     uptime = time.time() - STATS["started"]
-    return jsonify(uptime_s=round(uptime, 1), **STATS)
+    return jsonify(uptime_s=round(uptime, 1), cpu_s=round(time.process_time(), 2), **STATS)
 
 
 @socketio.on("connect")

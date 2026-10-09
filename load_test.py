@@ -78,7 +78,7 @@ class Player:
             time.sleep(max(0.0, next_at - time.perf_counter()))
 
 
-def race(base, seconds, players=4):
+def race(base, seconds, players=4, hz=20):
     base_rtt = plain_rtt_ms(base)
     print(f"plain HTTP round trip (median of 15): {base_rtt:.0f} ms")
 
@@ -89,7 +89,7 @@ def race(base, seconds, players=4):
     time.sleep(1)
 
     started = time.perf_counter()
-    threads = [threading.Thread(target=p.run, args=(seconds,)) for p in crowd]
+    threads = [threading.Thread(target=p.run, args=(seconds, hz)) for p in crowd]
     [t.start() for t in threads]
     [t.join() for t in threads]
     elapsed = time.perf_counter() - started
@@ -145,6 +145,11 @@ if __name__ == "__main__":
     ap.add_argument("base")
     ap.add_argument("--seconds", type=int, default=120)
     ap.add_argument("--idle", type=int, default=0, help="hold N idle seconds instead of racing")
+    ap.add_argument("--players", type=int, default=4)
+    ap.add_argument("--hz", type=int, default=20)
     args = ap.parse_args()
     base = args.base.rstrip("/")
-    idle(base, args.idle) if args.idle else race(base, args.seconds)
+    if args.idle:
+        idle(base, args.idle)
+    else:
+        race(base, args.seconds, args.players, args.hz)

@@ -7,6 +7,8 @@ WebSockets on Render's free tier at race-like traffic (4 players, 20 Hz)?
 """
 
 import os
+import resource
+import threading
 import time
 
 from flask import Flask, jsonify
@@ -36,8 +38,9 @@ def on_connect():
 
 
 @socketio.on("disconnect")
-def on_disconnect():
+def on_disconnect(reason=None):
     STATS["disconnects"] += 1
+    print(f"[disc] reason={reason} live={STATS['connects'] - STATS['disconnects']}", flush=True)
 
 
 @socketio.on("join")
@@ -53,6 +56,27 @@ def on_pos(data):
     emit("pos", data, to=ROOM, include_self=False)
     STATS["pos_out"] += 1
     return {"server_time": time.time()}  # the ack the sender times
+
+
+def _monitor():
+    """Every 5 s while there is traffic: CPU use, message rate, live sockets, memory."""
+    last_wall, last_cpu, last_in = time.time(), time.process_time(), 0
+    while True:
+        time.sleep(5)
+        wall, cpu, pos_in = time.time(), time.process_time(), STATS["pos_in"]
+        span = wall - last_wall
+        live = STATS["connects"] - STATS["disconnects"]
+        if live > 0 or pos_in != last_in:
+            peak_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+            print(
+                f"[mon] cpu={100 * (cpu - last_cpu) / span:.0f}% in={(pos_in - last_in) / span:.0f}/s "
+                f"live={live} threads={threading.active_count()} peak_rss={peak_mb:.0f}MB",
+                flush=True,
+            )
+        last_wall, last_cpu, last_in = wall, cpu, pos_in
+
+
+threading.Thread(target=_monitor, daemon=True).start()
 
 
 @app.get("/")

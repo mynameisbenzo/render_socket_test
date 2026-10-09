@@ -46,6 +46,9 @@ class Player:
         self.arrivals = []
         self.ack_timeouts = 0
         self.disconnects = 0
+        self.drop_reason = None
+        self.drop_at = None
+        self.t0 = None
         self.transport = None
         self.sio.on("pos", self._on_pos)
         self.sio.on("disconnect", self._on_disconnect)
@@ -53,8 +56,11 @@ class Player:
     def _on_pos(self, _data):
         self.arrivals.append(time.perf_counter())
 
-    def _on_disconnect(self):
+    def _on_disconnect(self, reason=None):
         self.disconnects += 1
+        self.drop_reason = reason
+        if self.t0 is not None:
+            self.drop_at = time.perf_counter() - self.t0
 
     def connect(self):
         self.sio.connect(self.base, transports=["websocket"], wait_timeout=90)
@@ -64,6 +70,7 @@ class Player:
     def run(self, seconds, hz=20):
         interval = 1.0 / hz
         next_at = time.perf_counter()
+        self.t0 = next_at
         end = next_at + seconds
         i = 0
         while time.perf_counter() < end and self.sio.connected:
@@ -111,6 +118,9 @@ def race(base, seconds, players=4, hz=20):
     print(f"relay gaps   p95 {pct(gaps, .95):.0f} ms   max {max(gaps):.0f} ms   (20 Hz = 50 ms ideal)")
     print(f"relayed      {got_rx}/{expected_rx} ({100 * got_rx / expected_rx:.1f}%)   ack timeouts {sum(p.ack_timeouts for p in crowd)}")
     print(f"disconnects  {disconnects}")
+    for p in crowd:
+        if p.drop_at is not None:
+            print(f"  {p.name} dropped {p.drop_at:.1f}s into the run, client-side reason: {p.drop_reason}")
     ok_ws = all(p.transport == "websocket" for p in crowd)
     print("\nPASS/FAIL")
     print(f"  websocket transport .......... {'PASS' if ok_ws else 'FAIL'}")
